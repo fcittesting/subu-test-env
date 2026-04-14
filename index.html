@@ -385,7 +385,7 @@ const S = {
 const API={
   books(params={}){
     let r=[...DB.books];
-    if(params.search) r=r.filter(b=>b.title.includes(params.search)||b.author.includes(params.search)); // ДЕФЕКТ-003: case-sensitive
+    if(params.search) r=r.filter(b=>b.title.includes(params.search)||b.author.includes(params.search)); 
     if(params.genre)  r=r.filter(b=>b.genre===params.genre);
     if(params.avail==='true') r=r.filter(b=>b.avail>0);
     const pg=parseInt(params.page)||1,ps=8,st=(pg-1)*ps;
@@ -401,7 +401,7 @@ const API={
     return{count:r.length,results:r};
   },
   booking(id){
-    // ДЕФЕКТ-004 (IDOR): не перевіряємо uid===S.u.id
+    
     const b=DB.bookings.find(x=>x.id===parseInt(id));
     if(!b)return{error:'Бронювання не знайдено',status:404};
     return{...b,book:DB.books.find(x=>x.id===b.bid),user:DB.users.find(x=>x.id===b.uid)};
@@ -409,12 +409,12 @@ const API={
   book_create(bookId){
     if(!S.u)return{error:'Unauthorized',status:401};
     const u=S.u;
-    // ДЕФЕКТ-002: > замість >= (off-by-one для значення 50 грн)
+    
     if(u.fines>DB.cfg.fineBlock)return{error:`Штраф ${u.fines} грн перевищує ліміт (${DB.cfg.fineBlock} грн). Погасіть борг у бібліотеці.`,status:403};
     const book=DB.books.find(b=>b.id===parseInt(bookId));
     if(!book)return{error:'Книгу не знайдено',status:404};
     if(book.avail<=0)return{error:'Книга недоступна — всі екземпляри видані',status:409};
-    // ДЕФЕКТ-001: не перевіряємо дублікати
+    
     const max=u.role==='teacher'?DB.cfg.teacherMax:DB.cfg.studentMax;
     const active=DB.bookings.filter(b=>b.uid===u.id&&['active','issued'].includes(b.status));
     if(active.length>=max)return{error:`Ліміт бронювань вичерпано (${max})`,status:403};
@@ -448,7 +448,7 @@ const API={
   },
   all_users(){
     if(!S.is('librarian'))return{error:'Forbidden',status:403};
-    return DB.users; // ДЕФЕКТ-006: паролі в відповіді
+    return DB.users; 
   },
   all_bookings(){
     if(!S.is('librarian'))return{error:'Forbidden',status:403};
@@ -567,7 +567,7 @@ function renderDash(){
   const fc=p.fines>=50?'var(--red)':p.fines>0?'var(--amber)':'var(--green)';
   let warn='';
   if(p.fines>DB.cfg.fineBlock)warn=`<div class="alert alert-danger" data-testid="fine-warning">⚠️ Штраф ${p.fines} грн перевищує ліміт. Бронювання заблоковано. Погасіть борг у бібліотеці.</div>`;
-  else if(p.fines===DB.cfg.fineBlock)warn=`<div class="alert alert-warning">⚠️ Штраф рівно ${p.fines} грн. <strong>Дефект #002:</strong> система <em>НЕ</em> блокує (off-by-one: блокується лише при > 50).</div>`;
+  else if(p.fines===DB.cfg.fineBlock)warn=`<div class="alert alert-warning">⚠️ Штраф рівно ${p.fines} грн. </div>`;
   else if(p.fines>0)warn=`<div class="alert alert-warning">📋 Штраф ${p.fines} грн. При перевищенні 50 грн бронювання буде заблоковано.</div>`;
 
   document.getElementById('dash-content').innerHTML=`
@@ -657,7 +657,7 @@ function renderCat(){
           <input class="finput" type="text" id="c-search" data-testid="search-input" placeholder="Назва або автор..." autocomplete="off">
           <button class="btn btn-primary" id="c-sbtn" data-testid="search-btn">🔍 Знайти</button>
         </div>
-        <div class="fhint" style="color:var(--amber)">⚠ Дефект #003: пошук чутливий до регістру</div>
+        
       </div>
       <div class="fg">
         <label class="flabel">Жанр</label>
@@ -763,7 +763,7 @@ function bookIt(id,title){
     const r=API.book_create(id);
     if(r.error){Toast.err(r.error)}
     else{
-      // ДЕФЕКТ-005 (UX): лише toast, жодного persistent feedback на сторінці
+      
       Toast.ok(`✓ «${title}» заброньовано до ${fmtD(r.expires)}!`);
       doSearch();
     }
@@ -836,7 +836,7 @@ function returnBook(id){
 function loadAdmUs(){
   const users=API.all_users();
   document.getElementById('adm-us').innerHTML=`
-    <div class="alert alert-warning">⚠️ <strong>Дефект #006 (Info Disclosure):</strong> API повертає паролі у відповіді!</div>
+    
     <div class="tw"><table><thead><tr><th>ID</th><th>Ім'я</th><th>Email</th><th>Пароль ⚠</th><th>Роль</th><th>Штраф</th></tr></thead>
     <tbody>${users.map(u=>`<tr>
       <td><code>${u.id}</code></td><td>${u.fn} ${u.ln}</td>
