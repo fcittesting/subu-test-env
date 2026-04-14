@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Каталог — СУБУ</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<div id="navbar-placeholder"></div>
+<div id="debug-bar" class="debug-bar"></div>
+<div id="toast-container"></div>
+
+<main class="page-content">
+<div class="container">
+
+  <div style="margin-bottom:1.5rem">
+    <h1 style="font-size:1.6rem;margin-bottom:.25rem">Каталог книг</h1>
+    <p style="color:var(--slate);font-size:.9rem">Знайдіть і забронюйте книги університетської бібліотеки</p>
+  </div>
+
+  <!-- Фільтри -->
+  <div class="filter-bar" data-testid="filter-bar">
+    <div class="form-group" style="flex:2;min-width:220px">
+      <label class="form-label" for="search-input">Пошук</label>
+      <!-- ДЕФЕКТ-003: пошук чутливий до регістру (навмисно не виправлено) -->
+      <div class="input-group">
+        <input
+          class="form-control"
+          type="text"
+          id="search-input"
+          data-testid="search-input"
+          placeholder="Назва або автор..."
+          autocomplete="off"
+        >
+        <button class="btn btn-primary" id="search-btn" data-testid="search-btn">🔍 Знайти</button>
+      </div>
+      <div class="form-hint" style="color:var(--amber);font-size:.75rem">⚠ Пошук чутливий до регістру букв</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="genre-filter">Жанр</label>
+      <select class="form-control" id="genre-filter" data-testid="genre-filter">
+        <option value="">Всі жанри</option>
+        <option>Програмування</option>
+        <option>Алгоритми</option>
+        <option>Архітектура</option>
+        <option>Тестування</option>
+        <option>Бази даних</option>
+        <option>Мережі</option>
+        <option>Математика</option>
+        <option>Менеджмент</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="avail-filter">Доступність</label>
+      <select class="form-control" id="avail-filter" data-testid="avail-filter">
+        <option value="">Всі</option>
+        <option value="true">Тільки доступні</option>
+      </select>
+    </div>
+    <div class="form-group" style="min-width:auto">
+      <label class="form-label">&nbsp;</label>
+      <button class="btn btn-outline" id="clear-btn" data-testid="clear-filter-btn">✕ Скинути</button>
+    </div>
+  </div>
+
+  <!-- Результати -->
+  <div id="results-info" style="font-size:.875rem;color:var(--slate);margin-bottom:1rem"></div>
+
+  <div id="no-results" class="empty-state" style="display:none">
+    <div class="empty-icon">🔍</div>
+    <strong>Нічого не знайдено</strong>
+    <p>Спробуйте змінити пошуковий запит або скинути фільтри</p>
+  </div>
+
+  <div class="grid-4" id="books-grid"></div>
+
+  <div class="pagination" id="pagination"></div>
+
+</div>
+</main>
+
+<!-- Модальне вікно деталей книги -->
+<div id="book-modal-container"></div>
+
+<div id="footer-placeholder"></div>
+
+<script src="../js/db.js"></script>
+<script src="../js/ui.js"></script>
+<script>
+  if (!requireAuth()) throw new Error("Not authorized");
+
+  renderNavbar();
+  renderFooter();
+  renderDebugBar();
+
+  let currentPage = 1;
+  let currentParams = {};
+
+  function getParams() {
+    return {
+      search: document.getElementById("search-input").value.trim(),
+      genre: document.getElementById("genre-filter").value,
+      available: document.getElementById("avail-filter").value,
+      page: currentPage,
+    };
+  }
+
+  function renderBooks() {
+    const params = getParams();
+    const result = API.getBooks(params);
+    const grid = document.getElementById("books-grid");
+    const noRes = document.getElementById("no-results");
+    const info = document.getElementById("results-info");
+
+    if (result.results.length === 0) {
+      grid.innerHTML = "";
+      noRes.style.display = "flex";
+      noRes.style.flexDirection = "column";
+      noRes.style.alignItems = "center";
+      info.textContent = "";
+    } else {
+      noRes.style.display = "none";
+      info.textContent = `Знайдено: ${result.count} книг`;
+
+      // Emoji обкладинки за жанром
+      const coverEmojis = {
+        "Програмування": "💻", "Алгоритми": "🧮", "Архітектура": "🏗",
+        "Тестування": "🔍", "Бази даних": "🗄", "Мережі": "🌐",
+        "Математика": "📐", "Менеджмент": "📊",
+      };
+
+      grid.innerHTML = result.results.map(book => {
+        const avail = book.availableCopies > 0;
+        const emoji = coverEmojis[book.genre] || "📖";
+        return `
+          <div class="book-card" data-testid="book-card" data-book-id="${book.id}">
+            <div class="book-card-cover">${emoji}</div>
+            <div class="book-card-body">
+              <div class="book-title book-title-el">${book.title}</div>
+              <div class="book-author">${book.author}</div>
+              <span class="book-genre-tag">${book.genre}</span>
+              <div class="book-availability ${avail ? 'avail-yes' : 'avail-no'}">
+                ${avail ? `✓ Доступно: ${book.availableCopies} прим.` : '✕ Немає в наявності'}
+              </div>
+            </div>
+            <div class="book-card-actions">
+              <button class="btn btn-outline btn-sm" style="width:100%;justify-content:center;margin-bottom:.35rem" onclick="showBookModal(${book.id})">Детальніше</button>
+              ${avail ? `<button class="btn btn-primary btn-sm" data-testid="book-btn" style="width:100%;justify-content:center" onclick="bookBook(${book.id}, '${book.title.replace(/'/g,"\\'")}')">Забронювати</button>`
+                      : `<button class="btn btn-sm" disabled style="width:100%;justify-content:center;background:var(--slate4);color:var(--slate);cursor:not-allowed">Недоступно</button>`}
+            </div>
+          </div>`;
+      }).join("");
+    }
+
+    // Пагінація
+    const totalPages = Math.ceil(result.count / 8);
+    const pg = document.getElementById("pagination");
+    if (totalPages <= 1) { pg.innerHTML = ""; return; }
+    let pages = "";
+    for (let i = 1; i <= totalPages; i++) {
+      pages += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="goPage(${i})">${i}</button>`;
+    }
+    pg.innerHTML = `
+      <button class="page-btn" ${currentPage === 1 ? 'disabled' : ''} onclick="goPage(${currentPage-1})">←</button>
+      ${pages}
+      <button class="page-btn" ${currentPage === totalPages ? 'disabled' : ''} onclick="goPage(${currentPage+1})">→</button>`;
+  }
+
+  function goPage(p) { currentPage = p; renderBooks(); window.scrollTo(0,0); }
+
+  // ── Пошук ────────────────────────────────────────────────────
+  document.getElementById("search-btn").onclick = () => { currentPage = 1; renderBooks(); };
+  document.getElementById("search-input").onkeydown = e => { if (e.key === "Enter") { currentPage = 1; renderBooks(); } };
+  document.getElementById("genre-filter").onchange = () => { currentPage = 1; renderBooks(); };
+  document.getElementById("avail-filter").onchange = () => { currentPage = 1; renderBooks(); };
+  document.getElementById("clear-btn").onclick = () => {
+    document.getElementById("search-input").value = "";
+    document.getElementById("genre-filter").value = "";
+    document.getElementById("avail-filter").value = "";
+    currentPage = 1;
+    renderBooks();
+  };
+
+  // ── Деталі книги ─────────────────────────────────────────────
+  function showBookModal(id) {
+    const book = API.getBook(id);
+    if (book.error) { Toast.error(book.error); return; }
+    const avail = book.availableCopies > 0;
+    document.getElementById("book-modal-container").innerHTML = `
+      <div class="modal-overlay" id="book-modal">
+        <div class="modal">
+          <div class="modal-header">
+            <h3>${book.title}</h3>
+            <button class="modal-close" onclick="document.getElementById('book-modal').remove()">✕</button>
+          </div>
+          <div class="modal-body">
+            <p style="margin-bottom:.75rem;color:var(--slate);font-size:.9rem">${book.description}</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;font-size:.875rem">
+              <div><span style="color:var(--slate)">Автор:</span> <strong>${book.author}</strong></div>
+              <div><span style="color:var(--slate)">Рік:</span> <strong>${book.year}</strong></div>
+              <div><span style="color:var(--slate)">ISBN:</span> <code style="font-size:.8rem">${book.isbn}</code></div>
+              <div><span style="color:var(--slate)">Жанр:</span> <span class="badge badge-info">${book.genre}</span></div>
+              <div><span style="color:var(--slate)">Всього:</span> <strong>${book.totalCopies}</strong></div>
+              <div><span style="color:var(--slate)">Доступно:</span> <strong class="${avail ? 'avail-yes':'avail-no'}">${book.availableCopies}</strong></div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-outline" onclick="document.getElementById('book-modal').remove()">Закрити</button>
+            ${avail ? `<button class="btn btn-primary" data-testid="modal-book-btn" onclick="document.getElementById('book-modal').remove();bookBook(${book.id},'${book.title.replace(/'/g,"\\'")}')">Забронювати</button>` : `<button class="btn btn-sm" disabled style="background:var(--slate4);color:var(--slate)">Недоступно</button>`}
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // ── Бронювання ───────────────────────────────────────────────
+  function bookBook(bookId, title) {
+    Modal.confirm(
+      "Підтвердити бронювання",
+      `Ви хочете забронювати книгу <strong>${title}</strong>?<br><small style="color:var(--slate)">Бронювання діє 3 дні. Забрати у бібліотеці протягом цього часу.</small>`,
+      () => {
+        const result = API.createBooking(bookId);
+        if (result.error) {
+          Toast.error(result.error);
+        } else {
+          // ДЕФЕКТ-005: UX — тут немає видимого підтвердження на сторінці (лише toast)
+          Toast.success(`✓ Книгу «${title}» заброньовано! Дійсне до ${formatDate(result.expiresAt)}.`);
+          renderBooks();
+        }
+      }
+    );
+  }
+
+  // ── Ініціалізація ─────────────────────────────────────────────
+  // Обробка URL параметрів
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get("search")) document.getElementById("search-input").value = urlParams.get("search");
+
+  renderBooks();
+</script>
+</body>
+</html>

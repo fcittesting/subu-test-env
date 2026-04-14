@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Увійти — СУБУ</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body { background: none; }
+  </style>
+</head>
+<body>
+
+<div id="toast-container"></div>
+
+<div class="login-wrap">
+  <div class="login-card">
+
+    <div class="login-header">
+      <div class="login-logo" aria-hidden="true">📖</div>
+      <div class="login-title">СУБУ</div>
+      <div class="login-subtitle">Система управління бібліотекою університету</div>
+    </div>
+
+    <div class="login-body">
+      <div class="login-hint">
+        <strong>🧪 Навчальне середовище</strong><br>
+        Студент: <code>student@univ.edu</code> / <code>Test123!</code><br>
+        Викладач: <code>teacher@univ.edu</code> / <code>Test123!</code><br>
+        Бібліотекар: <code>library@univ.edu</code> / <code>Admin123!</code><br>
+        <span style="color:#EF4444">⚠ Зі штрафом: <code>fined@univ.edu</code>, заблокований: <code>blocked@univ.edu</code></span>
+      </div>
+
+      <form id="login-form" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="email">Email</label>
+          <input
+            class="form-control"
+            type="email"
+            id="email"
+            name="email"
+            data-testid="email-input"
+            placeholder="your@univ.edu"
+            autocomplete="username"
+            required
+          >
+          <div class="form-error" id="email-error" role="alert" aria-live="polite"></div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">Пароль</label>
+          <div class="input-group">
+            <input
+              class="form-control"
+              type="password"
+              id="password"
+              name="password"
+              data-testid="password-input"
+              placeholder="••••••••"
+              autocomplete="current-password"
+              required
+            >
+            <button type="button" class="btn btn-outline btn-sm" id="toggle-pw" title="Показати/приховати пароль" aria-label="Показати пароль">👁</button>
+          </div>
+          <div class="form-error" id="password-error" role="alert" aria-live="polite"></div>
+        </div>
+
+        <div id="login-error" class="alert alert-danger" style="display:none" role="alert" data-testid="login-error"></div>
+
+        <button class="btn btn-primary" type="submit" id="login-btn" data-testid="login-submit" style="width:100%;justify-content:center;margin-top:.5rem">
+          Увійти
+        </button>
+      </form>
+    </div>
+
+  </div>
+</div>
+
+<script src="js/db.js"></script>
+<script src="js/ui.js"></script>
+<script>
+  // Якщо вже авторизований — редирект
+  if (Session.isLoggedIn()) {
+    window.location.href = "/pages/dashboard.html";
+  }
+
+  document.getElementById("toggle-pw").onclick = function() {
+    const pw = document.getElementById("password");
+    const isText = pw.type === "text";
+    pw.type = isText ? "password" : "text";
+    this.textContent = isText ? "👁" : "🙈";
+  };
+
+  document.getElementById("login-form").onsubmit = function(e) {
+    e.preventDefault();
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    const btn = document.getElementById("login-btn");
+    const errEl = document.getElementById("login-error");
+
+    // Очистка помилок
+    document.getElementById("email-error").textContent = "";
+    document.getElementById("password-error").textContent = "";
+    errEl.style.display = "none";
+
+    // Базова валідація
+    let valid = true;
+    if (!email) { document.getElementById("email-error").textContent = "Email обов'язковий"; valid = false; }
+    if (!password) { document.getElementById("password-error").textContent = "Пароль обов'язковий"; valid = false; }
+    if (!valid) return;
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Перевіряємо...';
+
+    // Симуляція мережевої затримки
+    setTimeout(() => {
+      const result = Session.login(email, password);
+      if (result.success) {
+        btn.innerHTML = '✓ Успішно!';
+        Toast.success(`Вітаємо, ${result.user.firstName}!`);
+        setTimeout(() => { window.location.href = "/pages/dashboard.html"; }, 600);
+      } else {
+        errEl.textContent = result.error;
+        errEl.style.display = "flex";
+        btn.disabled = false;
+        btn.innerHTML = 'Увійти';
+        document.getElementById("password").value = "";
+        document.getElementById("password").focus();
+      }
+    }, 600);
+  };
+</script>
+</body>
+</html>
